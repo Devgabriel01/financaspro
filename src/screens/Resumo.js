@@ -1,12 +1,16 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { carregar } from '../storage';
+import { getUsuario } from '../auth';
+import * as SecureStore from 'expo-secure-store';
 
-export default function Resumo() {
+export default function Resumo({ navigation }) {
   const [receitas, setReceitas] = useState([]);
   const [gastos, setGastos] = useState([]);
   const [investimentos, setInvestimentos] = useState([]);
+  const [usuario, setUsuario] = useState(null);
+  const [foto, setFoto] = useState(null);
 
   useFocusEffect(
     useCallback(() => { carregarDados(); }, [])
@@ -16,6 +20,10 @@ export default function Resumo() {
     setReceitas(await carregar('receitas'));
     setGastos(await carregar('gastos'));
     setInvestimentos(await carregar('investimentos'));
+    const u = await getUsuario();
+    setUsuario(u);
+    const fotoSalva = await SecureStore.getItemAsync('foto_perfil');
+    if (fotoSalva) setFoto(fotoSalva);
   };
 
   const fmt = v => 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -29,10 +37,33 @@ export default function Resumo() {
     ...gastos.map(x => ({...x, tipo:'gasto'}))
   ].slice(-6).reverse();
 
+  const iniciais = usuario?.nome ? usuario.nome.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??';
+  const saudacao = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.appName}>FinançasPro</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.appName}>FinançasPro</Text>
+            <Text style={styles.saudacao}>{saudacao()}, {usuario?.nome?.split(' ')[0] || 'usuário'}! 👋</Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('Perfil')} style={styles.avatarBtn}>
+            {foto ? (
+              <Image source={{ uri: foto }} style={styles.avatarFoto} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarIniciais}>{iniciais}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.label}>Saldo do mês</Text>
         <Text style={[styles.saldo, { color: saldo >= 0 ? '#10b981' : '#f43f5e' }]}>{fmt(saldo)}</Text>
         <View style={styles.chips}>
@@ -79,7 +110,13 @@ export default function Resumo() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0b1120' },
   header: { padding: 24, paddingTop: 60, backgroundColor: '#0f1e38' },
-  appName: { fontSize: 18, fontWeight: '800', color: '#00d4ff', marginBottom: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  appName: { fontSize: 18, fontWeight: '800', color: '#00d4ff' },
+  saudacao: { fontSize: 14, color: '#64748b', marginTop: 2 },
+  avatarBtn: { padding: 2 },
+  avatarFoto: { width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: '#00d4ff' },
+  avatarPlaceholder: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#1a2840', borderWidth: 2, borderColor: '#00d4ff', alignItems: 'center', justifyContent: 'center' },
+  avatarIniciais: { fontSize: 16, fontWeight: '800', color: '#00d4ff' },
   label: { fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 },
   saldo: { fontSize: 36, fontWeight: '800', marginTop: 4, marginBottom: 16 },
   chips: { flexDirection: 'row', gap: 10 },
